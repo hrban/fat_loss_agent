@@ -1,115 +1,115 @@
-# Fat Loss Agent MVP Design
+# 个人减脂 Agent MVP 设计
 
-Date: 2026-06-16
+日期：2026-06-16
 
-## Context
+## 背景
 
-This project starts from an empty repository. The first goal is not to build a large platform, but to build a personal fat-loss agent that the owner can actually use every day.
+这个项目从空仓库开始。第一目标不是做一个复杂平台，而是先做出一个自己每天真的愿意打开使用的个人减脂 Agent。
 
-The MVP uses a lightweight Python monolith:
+MVP 采用轻量 Python 单体架构：
 
-- Streamlit for the local UI
-- SQLite for local persistence
-- A hand-written agent orchestrator
-- Qwen API as the default LLM provider
-- Explicit Python services and repositories instead of microservices or LangGraph
+- Streamlit：本地 Web UI
+- SQLite：本地数据持久化
+- 手写 Agent Orchestrator：显式编排意图、上下文、工具和回复
+- Qwen API：第一版默认 LLM Provider
+- Python services + repositories：清晰分层，但不引入微服务或 LangGraph
 
-The first usable workflow is diet logging:
+第一版最核心的可用链路是饮食记录：
 
 ```text
-Enter what I ate -> estimate nutrition -> manually correct -> save -> see today's remaining budget
+输入吃了什么 -> 估算营养 -> 手动修正 -> 确认保存 -> 查看今日剩余额度
 ```
 
-## Product Scope
+## 产品范围
 
-### In Scope
+### MVP 包含什么
 
-The MVP includes two user-facing pages.
+第一版只做两个用户可见页面。
 
-#### Profile Page
+#### 我的档案
 
-The profile page creates and updates the default local user's fat-loss profile. The first version is single-user, but all persisted business data includes `user_id` so the project can later evolve into multi-user mode.
+档案页用于创建和更新默认本地用户的减脂基础信息。第一版是单用户应用，但所有业务数据都保留 `user_id` 字段，方便后续演进为多用户。
 
-The default first-version user is:
+第一版默认用户是：
 
 ```text
 local_user
 ```
 
-The profile captures:
+档案字段包括：
 
-- Nickname
-- Sex
-- Age
-- Height in centimeters
-- Current weight in kilograms
-- Target weight in kilograms
-- Activity level
-- Fat-loss speed: conservative, standard, or aggressive
-- Optional diet preferences or restrictions
+- 昵称
+- 性别
+- 年龄
+- 身高，单位 cm
+- 当前体重，单位 kg
+- 目标体重，单位 kg
+- 活动水平
+- 减脂速度：保守、标准、激进
+- 饮食偏好或忌口，可选
 
-After saving the profile, the app calculates and stores:
+保存档案后，系统计算并保存：
 
-- Estimated BMR
-- Daily calorie target
-- Daily protein target
-- A short goal explanation
+- 估算基础代谢 BMR
+- 每日热量目标
+- 每日蛋白质目标
+- 简短目标说明
 
-The calculation should be explainable and conservative. It does not need to be medically precise in the MVP.
+第一版的计算逻辑要可解释、偏保守，不追求医学级精确。
 
-#### Diet Logging Page
+#### 饮食记录
 
-The diet logging page is the main experience.
+饮食记录页是第一版主体验。
 
-The user types a natural-language meal description, for example:
+用户输入自然语言餐食描述，例如：
 
 ```text
 午饭吃了两个鸡蛋、一碗米饭、一份牛肉
 ```
 
-The agent returns a pending meal card. The card shows:
+Agent 返回一张“待确认餐食卡片”。卡片展示：
 
-- Meal type
-- Title
-- Food item list
-- Amount assumptions
-- Estimated calories
-- Estimated protein
-- Estimated carbs
-- Estimated fat
-- Confidence
-- Notes
+- 餐次
+- 标题
+- 食物明细
+- 份量假设
+- 估算热量
+- 估算蛋白质
+- 估算碳水
+- 估算脂肪
+- 置信度
+- 备注
 
-The user can manually correct the values before saving. The app only writes confirmed meals to SQLite.
+用户可以在保存前手动修正这些值。只有用户确认后的餐食才写入 SQLite。
 
-The page also shows today's summary:
+页面还展示今日摘要：
 
-- Daily calorie target, consumed calories, and remaining calories
-- Daily protein target, consumed protein, and remaining protein
-- Meal list for today
-- A short practical suggestion for the rest of the day
+- 今日热量目标、已摄入热量、剩余热量
+- 今日蛋白质目标、已摄入蛋白质、还差多少蛋白质
+- 今日已记录餐食列表
+- 一句针对当天剩余额度的实用建议
 
-### Explicitly Out of Scope
+### MVP 明确不做什么
 
-The MVP does not include:
+第一版不做：
 
-- Login or registration
-- Multi-user UI
-- Food photo recognition
-- RAG knowledge base
-- Weekly review
+- 登录注册
+- 多用户 UI
+- 食物照片识别
+- RAG 知识库
+- 周复盘
 - FastAPI
 - LangGraph
 - Docker
-- Scheduled jobs
-- Complex permissions
-- Training plan generation
+- 定时任务
+- 复杂权限
+- 训练计划生成
 
-These are extension points after the diet logging workflow is stable.
+这些都是后续扩展点。第一阶段先把饮食记录链路跑稳。
 
-## Recommended Architecture
+## 推荐架构
 
-Use the lightweight version of a layered Python monolith.
+采用“轻量分层 Python 单体”的方案。
 
 ```text
 fat_loss_agent/
@@ -143,87 +143,87 @@ fat_loss_agent/
     agent_logs.jsonl
 ```
 
-### Module Responsibilities
+### 模块职责
 
 #### `app.py`
 
-Starts the Streamlit app, configures navigation, initializes the database, and wires dependencies.
+启动 Streamlit 应用，配置页面导航，初始化数据库，并完成基础依赖组装。
 
 #### `pages/`
 
-Owns Streamlit UI only. Pages do not execute SQL and do not call Qwen directly.
+只负责 Streamlit UI。页面不直接执行 SQL，也不直接调用 Qwen。
 
 #### `agent/orchestrator.py`
 
-Owns the first agent workflow. The orchestrator is intentionally small and explicit.
+负责第一版 Agent 主流程。Orchestrator 要保持小而显式。
 
-For a text meal log, it:
+处理文本餐食记录时，它做这些事：
 
-1. Receives `user_id` and user input.
-2. Reads profile context.
-3. Reads today's current nutrition summary.
-4. Calls the nutrition service to estimate the meal.
-5. Returns a pending meal object to the page.
-6. Records the trace.
+1. 接收 `user_id` 和用户输入。
+2. 读取用户档案上下文。
+3. 读取今日当前营养摘要。
+4. 调用 nutrition service 估算餐食。
+5. 返回 pending meal 给页面展示。
+6. 记录 trace。
 
-The orchestrator does not directly write SQL. Confirmed saving happens through `meal_service`.
+Orchestrator 不直接写 SQL。确认保存由 `meal_service` 完成。
 
 #### `llm/`
 
-Owns provider-specific LLM details.
+封装 LLM Provider 的差异。
 
-The MVP default provider is Qwen. The business layer depends on a small LLM interface, not on Qwen-specific request code. A later DeepSeek client can implement the same interface.
+MVP 默认 Provider 是 Qwen。业务层只依赖一个很薄的 LLM 接口，不依赖 Qwen 的请求细节。后续如果要接 DeepSeek，只需要增加实现同一接口的 `deepseek_client.py`。
 
 #### `services/`
 
-Owns business behavior:
+负责业务行为：
 
-- `profile_service`: create, read, and update the default user profile.
-- `goal_service`: calculate calorie and protein targets from profile data.
-- `nutrition_service`: ask Qwen to convert a natural-language meal into structured nutrition JSON.
-- `meal_service`: save confirmed meals, read meals, and calculate meal totals.
-- `summary_service`: calculate today's dashboard values and practical suggestions.
-- `trace_service`: persist agent inputs, tool calls, model metadata, errors, and final status.
+- `profile_service`：创建、读取、更新默认用户档案。
+- `goal_service`：根据档案计算热量和蛋白质目标。
+- `nutrition_service`：调用 Qwen，把自然语言餐食转换成结构化营养估算 JSON。
+- `meal_service`：保存已确认餐食、读取餐食、计算餐食汇总。
+- `summary_service`：计算今日看板数据和实用建议。
+- `trace_service`：持久化 Agent 输入、工具调用、模型元信息、错误和最终状态。
 
 #### `repositories/`
 
-Owns SQLite CRUD only. Repositories should not contain business rules.
+只负责 SQLite CRUD，不放业务判断。
 
-## Data Flow
+## 数据流
 
-### Text Meal Logging
+### 文本饮食记录链路
 
 ```text
-Streamlit text input
+Streamlit 文本输入
   -> orchestrator.handle_meal_text(user_id, text)
   -> profile_service.get_profile(user_id)
   -> meal_service.get_today_summary(user_id)
   -> nutrition_service.estimate_meal_from_text(text, profile, today_summary)
   -> qwen_client.generate_json(...)
-  -> nutrition_service validates structured JSON
-  -> orchestrator returns pending_meal
-  -> user manually corrects values
+  -> nutrition_service 校验结构化 JSON
+  -> orchestrator 返回 pending_meal
+  -> 用户手动修正
   -> meal_service.save_meal_log(user_id, confirmed_meal)
   -> summary_service.get_today_dashboard(user_id)
-  -> trace_service records database trace and JSONL trace
+  -> trace_service 写入数据库 trace 和 JSONL trace
 ```
 
-### Design Rules
+### 设计规则
 
-- The UI does not call the LLM directly.
-- The agent does not write SQL directly.
-- The LLM does not decide whether to save data.
-- Qwen output must be parsed and schema-validated before use.
-- Saving requires user confirmation.
-- Trace logging is part of the MVP, not a later enhancement.
+- UI 不直接调用 LLM。
+- Agent 不直接写 SQL。
+- LLM 不决定是否保存数据。
+- Qwen 输出必须先解析并通过 schema 校验。
+- 保存前必须经过用户确认。
+- Trace logging 是 MVP 的一部分，不是后续增强项。
 
-## Database Design
+## 数据库设计
 
-SQLite is enough for the personal MVP. All business tables include `user_id`, even though the first version uses only `local_user`.
+个人 MVP 使用 SQLite 足够。所有业务表都带 `user_id`，即使第一版只有 `local_user`。
 
 ### `profiles`
 
-Stores user profile and calculated targets.
+保存用户档案和计算后的目标。
 
 ```text
 id
@@ -247,7 +247,7 @@ updated_at
 
 ### `meal_logs`
 
-Stores one confirmed meal.
+保存一条已确认餐食记录。
 
 ```text
 id
@@ -268,7 +268,7 @@ updated_at
 
 ### `meal_items`
 
-Stores food-level details inside a meal.
+保存一餐里的食物明细。
 
 ```text
 id
@@ -285,7 +285,7 @@ notes
 
 ### `chat_messages`
 
-Stores chat history so the page can survive refreshes.
+保存聊天历史，让页面刷新后仍能恢复上下文。
 
 ```text
 id
@@ -297,7 +297,7 @@ metadata_json
 created_at
 ```
 
-Allowed first-version `message_type` values:
+第一版允许的 `message_type`：
 
 - `user_text`
 - `assistant_text`
@@ -306,7 +306,7 @@ Allowed first-version `message_type` values:
 
 ### `agent_traces`
 
-Stores trace summaries in SQLite. Full raw traces are also written to `traces/agent_logs.jsonl`.
+在 SQLite 里保存 trace 摘要。完整原始 trace 同步写入 `traces/agent_logs.jsonl`。
 
 ```text
 id
@@ -325,13 +325,13 @@ error_message
 created_at
 ```
 
-### Not Persisted in MVP
+### MVP 不持久化 `daily_summaries`
 
-Do not create a `daily_summaries` table in the MVP. Today's summary should be calculated from confirmed meal logs at runtime to avoid cache consistency problems.
+第一版不建 `daily_summaries` 表。今日摘要从已确认的 `meal_logs` 实时汇总，避免缓存一致性问题。
 
-## Pending Meal Shape
+## Pending Meal 数据结构
 
-Qwen returns a structure equivalent to:
+Qwen 返回的数据结构应等价于：
 
 ```json
 {
@@ -359,13 +359,13 @@ Qwen returns a structure equivalent to:
 }
 ```
 
-The service layer validates the parsed object before it reaches the editable confirmation UI.
+Service 层负责校验解析后的对象。只有通过校验的数据才进入可编辑确认 UI。
 
-## LLM Provider Design
+## LLM Provider 设计
 
-### Configuration
+### 配置
 
-The MVP reads Qwen configuration from environment variables:
+MVP 从环境变量读取 Qwen 配置：
 
 ```text
 QWEN_API_KEY
@@ -373,11 +373,11 @@ QWEN_BASE_URL
 QWEN_MODEL
 ```
 
-`QWEN_API_KEY` is required for model calls and must not be committed. `QWEN_BASE_URL` and `QWEN_MODEL` can have local defaults.
+`QWEN_API_KEY` 是模型调用必需项，不能提交到仓库。`QWEN_BASE_URL` 和 `QWEN_MODEL` 可以提供本地默认值。
 
-### LLM Interface
+### LLM 接口
 
-The application defines a small provider interface:
+应用定义一个很薄的 Provider 接口：
 
 ```text
 LLMClient.generate_json(
@@ -387,7 +387,7 @@ LLMClient.generate_json(
 ) -> LLMResult
 ```
 
-`LLMResult` includes:
+`LLMResult` 包含：
 
 ```text
 content_json
@@ -399,109 +399,109 @@ completion_tokens
 latency_ms
 ```
 
-### Qwen's MVP Responsibility
+### Qwen 在 MVP 中的职责
 
-Qwen only converts natural-language meal descriptions into structured nutrition estimates.
+Qwen 只负责把自然语言餐食描述转换为结构化营养估算。
 
-It does not:
+它不负责：
 
-- Save records
-- Modify profile or goals
-- Calculate remaining budget
-- Make database decisions
+- 保存记录
+- 修改档案或目标
+- 计算剩余额度
+- 做数据库决策
 
-The prompt should require:
+Prompt 需要明确要求：
 
-- JSON-only output
-- `is_food_log=false` when the input is not a food log
-- Common one-person Chinese diet assumptions when amounts are vague
-- Calories, protein, carbs, fat, confidence, and notes for each item
-- Clear assumptions for uncertain estimates
-- No medical diagnosis
+- 只输出 JSON。
+- 当输入不是食物记录时，返回 `is_food_log=false`。
+- 份量模糊时，按常见中国饮食的一人份估算。
+- 每个食物都给出 calories、protein、carbs、fat、confidence 和 notes。
+- 对不确定估算写清楚假设。
+- 不做医疗诊断。
 
-## Error Handling
+## 错误处理
 
-The MVP treats failures as normal cases.
+MVP 把失败当成正常情况处理。
 
-### Missing API Key
+### 缺少 API Key
 
-If `QWEN_API_KEY` is missing, the app still opens. The diet logging page explains that model calls are unavailable until the key is configured.
+如果没有配置 `QWEN_API_KEY`，应用仍然可以打开。饮食记录页提示用户：模型调用不可用，需要先配置 API key。
 
-### Model Timeout or Network Failure
+### 模型超时或网络失败
 
-Show a retryable error in the UI and record a failed trace.
+UI 展示可重试错误，并记录失败 trace。
 
-### Invalid JSON
+### 模型返回非法 JSON
 
-Do not save. Store the raw model output in the trace and show a format error.
+不保存数据。把原始模型输出写入 trace，并在页面提示模型输出格式异常。
 
-### Schema Validation Failure
+### Schema 校验失败
 
-Do not save. Show a clear message that the model output was incomplete or invalid.
+不保存数据。页面提示模型输出不完整或不合法。
 
-### Vague User Input
+### 用户输入太模糊
 
-Allow low-confidence estimates to reach the editable confirmation UI. The notes should show the assumptions and encourage the user to correct values.
+允许低置信度估算进入可编辑确认 UI。备注里说明关键假设，并鼓励用户修正。
 
-### Invalid Manual Edits
+### 用户手动修改非法
 
-Block save when numeric fields are invalid, for example negative calories or protein.
+阻止保存。例如热量、蛋白质、碳水、脂肪不能是负数。
 
-### Fallback
+### 降级策略
 
-If Qwen fails, the MVP does not auto-guess. The user may manually create a meal record, and the trace records the model failure.
+如果 Qwen 调用失败，MVP 不自动猜测。用户可以手动创建一条餐食记录，trace 记录模型失败原因。
 
-## Implementation Order
+## 实现顺序
 
-1. Create the project skeleton, dependency files, `.env.example`, data directory, and trace directory.
-2. Implement SQLite initialization and table creation.
-3. Implement profile and goal services plus the profile page.
-4. Implement the LLM interface and Qwen client.
-5. Implement text meal estimation with schema validation.
-6. Implement the chat-style diet logging page with editable pending meal confirmation.
-7. Implement the orchestrator and trace logging.
-8. Verify the full workflow from profile creation to confirmed meal logging and today's summary.
+1. 创建项目骨架、依赖文件、`.env.example`、数据目录和 trace 目录。
+2. 实现 SQLite 初始化和建表。
+3. 实现 profile / goal services 和“我的档案”页面。
+4. 实现 LLM 接口和 Qwen client。
+5. 实现文本餐食估算和 schema 校验。
+6. 实现聊天式饮食记录页，包括 pending meal 可编辑确认。
+7. 实现 orchestrator 和 trace logging。
+8. 验证从建档到确认保存一餐，再到今日摘要更新的完整链路。
 
-## Testing Strategy
+## 测试策略
 
-Use focused tests for business logic and parsing. Streamlit can be manually verified in the MVP.
+优先测试业务逻辑和解析逻辑。Streamlit UI 在 MVP 阶段先做人工验收。
 
-### Unit Tests
+### 单元测试
 
-Cover:
+覆盖：
 
-- `goal_service`: calorie and protein target calculations for representative profiles.
-- `meal_service`: confirmed meal persistence and daily aggregation.
-- `nutrition_service`: parsing mock LLM JSON, handling missing fields, and rejecting invalid numeric values.
-- `orchestrator`: one text input produces a pending meal and records a trace when dependencies are mocked.
+- `goal_service`：代表性档案下的热量和蛋白质目标计算。
+- `meal_service`：已确认餐食的持久化和每日汇总。
+- `nutrition_service`：mock LLM JSON 的解析、缺字段处理、非法数值拒绝。
+- `orchestrator`：mock 依赖后，验证一次文本输入能产生 pending meal 并记录 trace。
 
-### Manual Acceptance Tests
+### 人工验收
 
-Verify:
+验证：
 
-1. The app starts with `streamlit run fat_loss_agent/app.py`.
-2. The user can save a profile.
-3. The app calculates calorie and protein targets.
-4. The user can submit a text meal.
-5. Qwen returns structured nutrition data.
-6. The pending meal card is editable.
-7. Confirming the card saves the meal.
-8. Today's summary updates consumed and remaining nutrition.
-9. Refreshing the app preserves profile, chat history, and meal logs.
-10. `agent_traces` and `traces/agent_logs.jsonl` contain the call record.
+1. 可以用 `streamlit run fat_loss_agent/app.py` 启动应用。
+2. 用户可以保存档案。
+3. 应用可以计算每日热量和蛋白质目标。
+4. 用户可以提交文本餐食。
+5. Qwen 返回结构化营养数据。
+6. Pending meal 卡片可编辑。
+7. 确认后可以保存餐食。
+8. 今日摘要会更新已摄入和剩余额度。
+9. 刷新页面后，档案、聊天历史、餐食记录仍然存在。
+10. `agent_traces` 和 `traces/agent_logs.jsonl` 中能看到本次调用记录。
 
-## MVP Completion Standard
+## MVP 完成标准
 
-The MVP is complete when this daily workflow is stable:
+MVP 完成的标准是这条日常链路稳定可用：
 
 ```text
-Open local Streamlit app
-  -> save profile
-  -> type meal description
-  -> receive Qwen estimate
-  -> correct estimate
-  -> save meal
-  -> see updated remaining calories and protein
+打开本地 Streamlit 应用
+  -> 保存个人档案
+  -> 输入一餐描述
+  -> 收到 Qwen 估算
+  -> 修正估算
+  -> 保存餐食
+  -> 看到今日剩余热量和蛋白质更新
 ```
 
-This is the first useful version. Later work should extend this workflow instead of replacing it.
+这是第一个真正有用的版本。后续功能应该扩展这条链路，而不是推倒重来。
