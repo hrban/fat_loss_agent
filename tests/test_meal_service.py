@@ -5,11 +5,8 @@ from fat_loss_agent.services.meal_service import MealService
 from fat_loss_agent.services.summary_service import SummaryService
 
 
-def test_save_meal_and_get_today_summary(tmp_path):
-    db_path = tmp_path / "app.db"
-    init_db(db_path)
-    service = MealService(MealRepository(db_path))
-    meal = PendingMealEstimate(
+def build_test_meal() -> PendingMealEstimate:
+    return PendingMealEstimate(
         is_food_log=True,
         meal_type="lunch",
         title="鸡蛋米饭",
@@ -33,6 +30,13 @@ def test_save_meal_and_get_today_summary(tmp_path):
         notes="",
     )
 
+
+def test_save_meal_and_get_today_summary(tmp_path):
+    db_path = tmp_path / "app.db"
+    init_db(db_path)
+    service = MealService(MealRepository(db_path))
+    meal = build_test_meal()
+
     saved_id = service.save_meal_log("local_user", "午饭吃了两个鸡蛋", meal)
     summary = service.get_today_summary("local_user")
 
@@ -40,6 +44,25 @@ def test_save_meal_and_get_today_summary(tmp_path):
     assert summary["total_calories"] == 140
     assert summary["protein_g"] == 12
     assert len(summary["meals"]) == 1
+
+
+def test_save_photo_meal_persists_photo_metadata(tmp_path):
+    db_path = tmp_path / "app.db"
+    init_db(db_path)
+    service = MealService(MealRepository(db_path))
+    meal = build_test_meal()
+
+    service.save_meal_log(
+        "local_user",
+        "照片记录：午饭",
+        meal,
+        input_type="photo",
+        photo_path="/tmp/lunch.jpg",
+    )
+    summary = service.get_today_summary("local_user")
+
+    assert summary["meals"][0]["input_type"] == "photo"
+    assert summary["meals"][0]["photo_path"] == "/tmp/lunch.jpg"
 
 
 def test_summary_service_calculates_remaining_budget():

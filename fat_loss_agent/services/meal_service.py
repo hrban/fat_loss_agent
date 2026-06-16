@@ -11,8 +11,22 @@ class MealService:
     def __init__(self, repo: MealRepository):
         self.repo = repo
 
-    def save_meal_log(self, user_id: str, raw_text: str, meal: PendingMealEstimate) -> int:
-        return self.repo.save_meal(user_id=user_id, raw_text=raw_text, meal=meal)
+    def save_meal_log(
+        self,
+        user_id: str,
+        raw_text: str,
+        meal: PendingMealEstimate,
+        *,
+        input_type: str = "text",
+        photo_path: str = "",
+    ) -> int:
+        return self.repo.save_meal(
+            user_id=user_id,
+            raw_text=raw_text,
+            meal=meal,
+            input_type=input_type,
+            photo_path=photo_path,
+        )
 
     def get_today_summary(self, user_id: str) -> dict[str, Any]:
         meals = self.repo.list_meals_for_day(user_id, date.today())

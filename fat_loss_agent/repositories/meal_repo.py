@@ -16,23 +16,33 @@ class MealRepository:
     def __init__(self, db_path: Path):
         self.db_path = db_path
 
-    def save_meal(self, user_id: str, raw_text: str, meal: PendingMealEstimate) -> int:
+    def save_meal(
+        self,
+        user_id: str,
+        raw_text: str,
+        meal: PendingMealEstimate,
+        *,
+        input_type: str = "text",
+        photo_path: str = "",
+    ) -> int:
         now = utc_now_iso()
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
                 """
                 INSERT INTO meal_logs (
-                    user_id, logged_at, meal_type, raw_text, title,
+                    user_id, logged_at, meal_type, input_type, raw_text, photo_path, title,
                     total_calories, protein_g, carbs_g, fat_g,
                     confidence, notes, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
                     now,
                     meal.meal_type,
+                    input_type,
                     raw_text,
+                    photo_path,
                     meal.title,
                     meal.total_calories,
                     meal.protein_g,

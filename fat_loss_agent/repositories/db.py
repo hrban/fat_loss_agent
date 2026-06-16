@@ -41,7 +41,9 @@ def init_db(db_path: Path) -> None:
                 user_id TEXT NOT NULL,
                 logged_at TEXT NOT NULL,
                 meal_type TEXT NOT NULL,
+                input_type TEXT NOT NULL DEFAULT 'text',
                 raw_text TEXT NOT NULL,
+                photo_path TEXT NOT NULL DEFAULT '',
                 title TEXT NOT NULL,
                 total_calories REAL NOT NULL,
                 protein_g REAL NOT NULL,
@@ -95,3 +97,11 @@ def init_db(db_path: Path) -> None:
             );
             """
         )
+        ensure_column(conn, "meal_logs", "input_type", "TEXT NOT NULL DEFAULT 'text'")
+        ensure_column(conn, "meal_logs", "photo_path", "TEXT NOT NULL DEFAULT ''")
+
+
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    if column_name not in columns:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")

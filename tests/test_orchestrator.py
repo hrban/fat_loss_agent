@@ -52,6 +52,44 @@ class FakeNutritionService:
         )
 
 
+class FakeVisionNutritionService:
+    def estimate_meal_from_photo(self, *, photo_path, note, profile, today_summary):
+        return MealEstimationResult(
+            meal=PendingMealEstimate(
+                is_food_log=True,
+                meal_type="dinner",
+                title="照片晚餐",
+                items=[
+                    MealItemEstimate(
+                        name="牛肉",
+                        amount_text="1份",
+                        calories=220,
+                        protein_g=26,
+                        carbs_g=4,
+                        fat_g=11,
+                        confidence=0.7,
+                        notes="按照片估算",
+                    )
+                ],
+                total_calories=220,
+                protein_g=26,
+                carbs_g=4,
+                fat_g=11,
+                confidence=0.7,
+                notes="",
+            ),
+            llm=LLMResult(
+                content_json={},
+                raw_text="{}",
+                provider="fake",
+                model="fake-vision-model",
+                prompt_tokens=3,
+                completion_tokens=4,
+                latency_ms=5,
+            ),
+        )
+
+
 class FakeTraceService:
     def __init__(self):
         self.calls = []
@@ -67,6 +105,7 @@ def test_orchestrator_returns_pending_meal_and_records_trace():
         profile_service=FakeProfileService(),
         meal_service=FakeMealService(),
         nutrition_service=FakeNutritionService(),
+        vision_nutrition_service=FakeVisionNutritionService(),
         trace_service=trace_service,
     )
 
@@ -75,3 +114,20 @@ def test_orchestrator_returns_pending_meal_and_records_trace():
     assert result.meal.title == "鸡蛋"
     assert result.trace_id == "trace-1"
     assert trace_service.calls[0]["intent"] == "meal_log"
+
+
+def test_orchestrator_handles_photo_meal_and_records_trace():
+    trace_service = FakeTraceService()
+    orchestrator = AgentOrchestrator(
+        profile_service=FakeProfileService(),
+        meal_service=FakeMealService(),
+        nutrition_service=FakeNutritionService(),
+        vision_nutrition_service=FakeVisionNutritionService(),
+        trace_service=trace_service,
+    )
+
+    result = orchestrator.handle_meal_photo("local_user", "/tmp/lunch.jpg", "少油")
+
+    assert result.meal.title == "照片晚餐"
+    assert result.trace_id == "trace-1"
+    assert trace_service.calls[0]["intent"] == "meal_photo_log"

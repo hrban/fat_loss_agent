@@ -12,9 +12,11 @@ from fat_loss_agent.repositories.profile_repo import ProfileRepository
 from fat_loss_agent.repositories.trace_repo import TraceRepository
 from fat_loss_agent.services.meal_service import MealService
 from fat_loss_agent.services.nutrition_service import NutritionService
+from fat_loss_agent.services.photo_service import PhotoService, UnsupportedPhotoTypeError
 from fat_loss_agent.services.profile_service import ProfileService
 from fat_loss_agent.services.summary_service import SummaryService
 from fat_loss_agent.services.trace_service import TraceService
+from fat_loss_agent.services.vision_nutrition_service import VisionNutritionService
 
 
 def build_services(config: AppConfig):
@@ -26,11 +28,18 @@ def build_services(config: AppConfig):
         base_url=config.qwen_base_url,
         model=config.qwen_model,
     )
+    qwen_vision_client = QwenClient(
+        api_key=config.qwen_api_key,
+        base_url=config.qwen_base_url,
+        model=config.qwen_vision_model,
+    )
     nutrition_service = NutritionService(qwen_client)
+    vision_nutrition_service = VisionNutritionService(qwen_vision_client)
     orchestrator = AgentOrchestrator(
         profile_service=profile_service,
         meal_service=meal_service,
         nutrition_service=nutrition_service,
+        vision_nutrition_service=vision_nutrition_service,
         trace_service=trace_service,
     )
     return profile_service, meal_service, orchestrator
@@ -126,6 +135,41 @@ def render_meal_chat_page(*, config: AppConfig, user_id: str) -> None:
         render_dashboard(profile_service, meal_service, user_id)
 
     with left:
+        with st.expander("照片记录", expanded=False):
+            uploaded_photo = st.file_uploader("上传餐食照片", type=["jpg", "jpeg", "png", "webp"])
+            photo_note = st.text_input("补充说明", placeholder="例如：少油、米饭只吃了一半")
+            if uploaded_photo is not None:
+                st.image(uploaded_photo, caption="待识别照片", use_container_width=True)
+
+            if st.button("识别照片", disabled=uploaded_photo is None):
+                try:
+                    profile_service, meal_service, orchestrator = build_services(config)
+                    saved_photo = PhotoService(config.photo_dir).save_upload(
+                        user_id=user_id,
+                        original_filename=uploaded_photo.name,
+                        content=uploaded_photo.getvalue(),
+                    )
+                    content = f"照片记录：{photo_note or '无补充说明'}"
+                    ChatRepository(config.db_path).add_message(
+                        user_id=user_id,
+                        role="user",
+                        content=content,
+                        message_type="user_photo",
+                        metadata={"photo_path": str(saved_photo)},
+                    )
+                    result = orchestrator.handle_meal_photo(user_id, str(saved_photo), photo_note)
+                    st.session_state["pending_meal"] = result.meal.model_dump()
+                    st.session_state["pending_raw_text"] = content
+                    st.session_state["pending_input_type"] = "photo"
+                    st.session_state["pending_photo_path"] = str(saved_photo)
+                    st.success(f"已生成照片估算，trace_id={result.trace_id}")
+                except MissingQwenApiKeyError:
+                    st.error("未配置 QWEN_API_KEY 或 DASHSCOPE_API_KEY，无法调用 Qwen。")
+                except UnsupportedPhotoTypeError as exc:
+                    st.error(f"图片格式不支持：{exc}")
+                except Exception as exc:
+                    st.error(f"照片估算失败：{exc}")
+
         text = st.chat_input("输入你吃了什么，例如：午饭吃了两个鸡蛋、一碗米饭、一份牛肉")
         if text:
             ChatRepository(config.db_path).add_message(
@@ -139,6 +183,8 @@ def render_meal_chat_page(*, config: AppConfig, user_id: str) -> None:
                 result = orchestrator.handle_meal_text(user_id, text)
                 st.session_state["pending_meal"] = result.meal.model_dump()
                 st.session_state["pending_raw_text"] = text
+                st.session_state["pending_input_type"] = "text"
+                st.session_state["pending_photo_path"] = ""
                 st.success(f"已生成估算，trace_id={result.trace_id}")
             except MissingQwenApiKeyError:
                 st.error("未配置 QWEN_API_KEY 或 DASHSCOPE_API_KEY，无法调用 Qwen。")
@@ -151,7 +197,13 @@ def render_meal_chat_page(*, config: AppConfig, user_id: str) -> None:
             edited = edit_pending_meal(meal)
             if st.button("确认保存"):
                 meal_service = MealService(MealRepository(config.db_path))
-                meal_service.save_meal_log(user_id, st.session_state.get("pending_raw_text", ""), edited)
+                meal_service.save_meal_log(
+                    user_id,
+                    st.session_state.get("pending_raw_text", ""),
+                    edited,
+                    input_type=st.session_state.get("pending_input_type", "text"),
+                    photo_path=st.session_state.get("pending_photo_path", ""),
+                )
                 ChatRepository(config.db_path).add_message(
                     user_id=user_id,
                     role="assistant",
@@ -161,5 +213,7 @@ def render_meal_chat_page(*, config: AppConfig, user_id: str) -> None:
                 )
                 st.session_state.pop("pending_meal", None)
                 st.session_state.pop("pending_raw_text", None)
+                st.session_state.pop("pending_input_type", None)
+                st.session_state.pop("pending_photo_path", None)
                 st.success("餐食已保存")
                 st.rerun()

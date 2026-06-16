@@ -20,3 +20,14 @@ def test_init_db_creates_expected_tables(tmp_path):
         "meal_logs",
         "profiles",
     }.issubset(table_names)
+
+
+def test_init_db_adds_meal_photo_metadata_columns(tmp_path):
+    db_path = tmp_path / "app.db"
+    init_db(db_path)
+    init_db(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(meal_logs)").fetchall()}
+
+    assert {"input_type", "photo_path"}.issubset(columns)
