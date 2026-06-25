@@ -1,5 +1,7 @@
 .worktrees/
 .env
+.env.*
+!.env.example
 .venv/
 __pycache__/
 *.py[cod]
@@ -8,4 +10,5 @@ __pycache__/
 .streamlit/secrets.toml
 fat_loss_agent/data/*.db
 fat_loss_agent/data/*.db-*
+fat_loss_agent/data/photos/
 fat_loss_agent/traces/*.jsonl
